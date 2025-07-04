@@ -44,7 +44,6 @@
       border: 3px solid #004aad;
       background: black;
     }
-    /* Modal overlay */
     #secure-modal {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -114,15 +113,13 @@
     document.getElementById("room-code").textContent = `Session Code: ${roomId}`;
 
     let connected = false;
-    socket.emit("join-room", roomId);
+    socket.emit("join-room", roomId, "sharer");
 
     socket.on("viewer-ready", () => {
       connected = true;
-      // Hide modal smoothly
-      const modal = document.getElementById("secure-modal");
-      modal.classList.add("hide");
+      document.getElementById("secure-modal").classList.add("hide");
       setTimeout(() => {
-        modal.style.display = "none";
+        document.getElementById("secure-modal").style.display = "none";
       }, 700);
     });
 
