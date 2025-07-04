@@ -2,158 +2,131 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Viewing Screen – Zyra View</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zyra View - View Screen</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="/socket.io/socket.io.js"></script>
   <style>
-    body {
-      background: #fff;
-      font-family: 'Segoe UI', sans-serif;
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      position: relative;
-      overflow: hidden;
-    }
-    header {
-      background: #00c897;
+    #chat {
+      max-width: 600px;
+      margin: 20px auto;
+      background: #222;
+      padding: 10px;
+      border-radius: 8px;
       color: white;
-      width: 100%;
-      padding: 1rem;
-      font-size: 1.5rem;
-      font-weight: 700;
-      text-align: center;
-      box-shadow: 0 4px 10px rgba(0,200,151,0.4);
+      font-family: monospace;
     }
-    #room-code {
-      margin-top: 0.5rem;
-      font-size: 1.2rem;
-      font-weight: 600;
-      color: #004aad;
+    #chatbox {
+      height: 150px;
+      overflow-y: auto;
+      background: #111;
+      padding: 10px;
+      margin-bottom: 8px;
+      border-radius: 6px;
     }
-    video {
-      flex-grow: 1;
-      width: 95vw;
-      max-height: 75vh;
-      margin: 2rem auto;
-      border-radius: 1rem;
-      box-shadow: 0 10px 20px rgba(0,200,151,0.2);
-      border: 3px solid #00c897;
-      background: black;
+    input, button {
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
     }
-    #secure-modal {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.65);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      opacity: 1;
-      transition: opacity 0.6s ease;
+    input {
+      width: 75%;
+      margin-right: 10px;
+      font-size: 16px;
     }
-    #secure-modal.hide {
-      opacity: 0;
-      pointer-events: none;
-    }
-    #secure-modal-content {
-      background: white;
-      padding: 2rem 3rem;
-      border-radius: 1rem;
-      text-align: center;
-      font-weight: 700;
-      font-size: 1.4rem;
-      color: #00c897;
-      box-shadow: 0 10px 30px rgba(0, 200, 151, 0.5);
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      animation: pulse 1.5s infinite;
-    }
-    .spinner {
-      border: 4px solid #004aad;
-      border-top: 4px solid transparent;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg);}
-      100% { transform: rotate(360deg);}
-    }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.05); opacity: 0.8; }
+    button {
+      background: #3fa;
+      cursor: pointer;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <header>
-    Zyra View – Viewing Screen
-    <div id="room-code"></div>
-  </header>
+  <h2>🔐 Establishing Secure Connection...</h2>
+  <video id="video" autoplay muted style="width:90%;max-width:900px; background:black;"></video>
 
-  <video id="screen" autoplay playsinline controls muted></video>
-
-  <div id="secure-modal">
-    <div id="secure-modal-content">
-      <div class="spinner"></div>
-      <span>🔐 Establishing Secure Connection...</span>
-    </div>
+  <div id="chat">
+    <div id="chatbox"></div>
+    <input id="messageInput" type="text" placeholder="Type a message" />
+    <button id="sendBtn">Send</button>
   </div>
 
-  <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
-    const video = document.getElementById("screen");
-    const roomId = window.location.pathname.split("/").pop();
-    document.getElementById("room-code").textContent = `Session Code: ${roomId}`;
+    const roomId = new URLSearchParams(window.location.search).get("code");
+    const video = document.getElementById("video");
+    const chatbox = document.getElementById("chatbox");
+    const messageInput = document.getElementById("messageInput");
+    const sendBtn = document.getElementById("sendBtn");
 
-    socket.emit("join-room", roomId, "viewer");
+    if (!roomId) {
+      alert("No session code provided");
+      window.location.href = "/";
+    }
 
     let mediaSource = new MediaSource();
     video.src = URL.createObjectURL(mediaSource);
+    let sourceBuffer;
+    let queue = [];
+
+    socket.emit("join-room", roomId);
+
+    socket.on("sharer", () => {
+      document.querySelector("h2").textContent = "🔐 Sharer is online. Waiting for stream...";
+    });
+
+    socket.on("viewer", () => {
+      document.querySelector("h2").textContent = "🔐 Connected. Loading screen...";
+    });
+
+    socket.on("sharer-disconnected", () => {
+      document.querySelector("h2").textContent = "❌ Sharer disconnected.";
+      alert("Sharer has left the session.");
+      video.src = "";
+    });
 
     mediaSource.addEventListener("sourceopen", () => {
-      const mime = 'video/webm; codecs="vp8,opus"';
-      const sourceBuffer = mediaSource.addSourceBuffer(mime);
+      sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp8"');
 
-      socket.on("screen-stream", (data) => {
+      sourceBuffer.addEventListener("updateend", () => {
+        if (queue.length > 0 && !sourceBuffer.updating) {
+          sourceBuffer.appendBuffer(queue.shift());
+        }
+      });
+
+      socket.on("screen-stream", (chunk) => {
+        if (!(chunk instanceof Blob)) chunk = new Blob([chunk], { type: "video/webm" });
         const reader = new FileReader();
-        reader.onload = function () {
-          sourceBuffer.appendBuffer(new Uint8Array(this.result));
+        reader.onload = function (e) {
+          if (sourceBuffer.updating || queue.length > 0) {
+            queue.push(new Uint8Array(e.target.result));
+          } else {
+            sourceBuffer.appendBuffer(new Uint8Array(e.target.result));
+          }
         };
-        reader.readAsArrayBuffer(data.chunk);
+        reader.readAsArrayBuffer(chunk);
       });
     });
 
-    socket.on("sharer-online", () => {
-      const modal = document.getElementById("secure-modal");
-      const modalText = modal.querySelector("span");
-      modalText.textContent = "🔐 Connected. Loading screen...";
-    });
-
-    socket.on("sharer-offline", () => {
-      const modal = document.getElementById("secure-modal");
-      modal.classList.remove("hide");
-      modal.querySelector("span").textContent = "⚠️ User disconnected. Waiting...";
-    });
-
-    socket.on("wait-for-sharer", () => {
-      const modal = document.getElementById("secure-modal");
-      modal.querySelector("span").textContent = "⌛ Waiting for user to share screen...";
-    });
-
-    // Optional: auto-hide modal once screen starts flowing
-    video.onplaying = () => {
-      const modal = document.getElementById("secure-modal");
-      modal.classList.add("hide");
-      setTimeout(() => modal.style.display = "none", 700);
+    // Chat functionality
+    sendBtn.onclick = () => {
+      const msg = messageInput.value.trim();
+      if (msg.length === 0) return;
+      appendMessage(`You: ${msg}`);
+      socket.emit("chat-message", { roomId, message: msg });
+      messageInput.value = "";
     };
+
+    socket.on("chat-message", ({ message, sender }) => {
+      appendMessage(`Helper: ${message}`);
+    });
+
+    function appendMessage(msg) {
+      const div = document.createElement("div");
+      div.textContent = msg;
+      chatbox.appendChild(div);
+      chatbox.scrollTop = chatbox.scrollHeight;
+    }
   </script>
 </body>
 </html>
