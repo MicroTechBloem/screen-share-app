@@ -6,6 +6,7 @@
   <title>Zyra View - Secure Remote Assistance</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <style>
+    /* Keep your previous styles */
     body {
       background: linear-gradient(135deg, #004AAD, #00C897);
       color: white;
@@ -37,7 +38,7 @@
       border-radius: 0.8rem;
       box-shadow: 0 5px 10px rgba(0,0,0,0.15);
     }
-    #auto-code {
+    #code-display {
       font-size: 2rem;
       letter-spacing: 0.2rem;
       font-weight: 800;
@@ -48,6 +49,12 @@
       border-radius: 0.5rem;
       padding: 0.3rem 0.8rem;
       display: inline-block;
+    }
+    #timer {
+      margin-top: 0.3rem;
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: #ffd700;
     }
     #code-entry {
       margin-top: 1rem;
@@ -64,8 +71,9 @@
       <h3>Get Help</h3>
       <p>Let someone you trust view your screen or take control of your PC.</p>
       <p>Your Security Code:</p>
-      <div id="auto-code" title="Click to copy"></div>
-      <button class="btn btn-light btn-lg" id="start-sharing-btn">Start Sharing</button>
+      <div id="code-display" title="Click to copy">—</div>
+      <div id="timer"></div>
+      <button class="btn btn-light btn-lg" id="start-sharing-btn" disabled>Start Sharing</button>
     </div>
     
     <hr style="border-color: rgba(255 255 255 / 0.3);" />
@@ -73,42 +81,89 @@
     <div id="help-someone">
       <h3>Help Someone</h3>
       <p>Ask someone you know to share their screen.</p>
-      <input id="code-input" class="form-control form-control-lg" type="text" placeholder="Enter Security Code" maxlength="7" />
+      <input id="code-input" class="form-control form-control-lg" type="text" placeholder="Enter Security Code (1234-56)" maxlength="7" />
       <button class="btn btn-success btn-lg mt-3" id="join-session-btn">Join Session</button>
     </div>
   </div>
 
   <script>
-    async function fetchCode() {
-      try {
-        const res = await fetch("/api/current-code");
-        const data = await res.json();
-        document.getElementById("auto-code").textContent = data.code;
-      } catch (e) {
-        document.getElementById("auto-code").textContent = "ERR";
-      }
+    let countdownInterval = null;
+    let codeExpiresAt = null;
+
+    function generateCode() {
+      const part1 = Math.floor(1000 + Math.random() * 9000);
+      const part2 = Math.floor(10 + Math.random() * 90);
+      return `${part1}-${part2}`;
     }
-    fetchCode();
-    setInterval(fetchCode, 30 * 1000); // refresh every 30 seconds
-    
-    document.getElementById("auto-code").onclick = () => {
-      navigator.clipboard.writeText(document.getElementById("auto-code").textContent);
-      alert("Code copied to clipboard!");
-    };
-    
+
+    function startCountdown(durationSeconds) {
+      codeExpiresAt = Date.now() + durationSeconds * 1000;
+      updateTimer();
+
+      countdownInterval = setInterval(() => {
+        updateTimer();
+      }, 1000);
+    }
+
+    function updateTimer() {
+      const now = Date.now();
+      const diff = Math.floor((codeExpiresAt - now) / 1000);
+      const timerEl = document.getElementById("timer");
+
+      if (diff <= 0) {
+        clearInterval(countdownInterval);
+        document.getElementById("code-display").textContent = "—";
+        timerEl.textContent = "Code expired. Click 'Get Help' again.";
+        document.getElementById("start-sharing-btn").disabled = true;
+        return;
+      }
+
+      const minutes = Math.floor(diff / 60);
+      const seconds = diff % 60;
+      timerEl.textContent = `Expires in: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
     document.getElementById("start-sharing-btn").onclick = () => {
-      const code = document.getElementById("auto-code").textContent;
-      window.location.href = "/share/" + code;
+      const code = document.getElementById("code-display").textContent;
+      window.location.href = `/share/${code}`;
     };
-    
+
+    document.getElementById("code-display").onclick = () => {
+      const code = document.getElementById("code-display").textContent;
+      if (code !== "—") {
+        navigator.clipboard.writeText(code);
+        alert("Code copied to clipboard!");
+      }
+    };
+
     document.getElementById("join-session-btn").onclick = () => {
       const codeInput = document.getElementById("code-input").value.trim();
-      if (!/\\d{4}-\\d{2}/.test(codeInput)) {
+      if (!/^\d{4}-\d{2}$/.test(codeInput)) {
         alert("Enter a valid code in format 1234-56");
         return;
       }
-      window.location.href = "/view/" + codeInput;
+      window.location.href = `/view/${codeInput}`;
     };
+
+    // New: Generate a code only when user clicks "Get Help"
+    function enableGetHelp() {
+      const code = generateCode();
+      document.getElementById("code-display").textContent = code;
+      document.getElementById("start-sharing-btn").disabled = false;
+      startCountdown(600); // 10 minutes
+    }
+
+    // Add a new button for "Get Help"
+    const getHelpBtn = document.createElement("button");
+    getHelpBtn.textContent = "Get Help";
+    getHelpBtn.className = "btn btn-primary btn-lg my-3";
+    getHelpBtn.onclick = () => {
+      enableGetHelp();
+      getHelpBtn.disabled = true;
+    };
+
+    const getHelpDiv = document.getElementById("get-help");
+    getHelpDiv.insertBefore(getHelpBtn, document.getElementById("code-display"));
   </script>
 </body>
 </html>
