@@ -2,78 +2,84 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Zyra View - Micro Tech Bloem</title>
+  <title>Zyra View by Micro Tech Bloem</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="container">
     <h1>Zyra View</h1>
-    <p>Get help or help someone by sharing your screen securely.</p>
+    <p>Get help or help someone by sharing or viewing screens securely with a code.</p>
 
-    <button id="getHelpBtn">Get Help</button>
-    <button id="helpSomeoneBtn">Help Someone</button>
+    <button id="get-help-btn">Get Help (Share Your Screen)</button>
+    <button id="help-someone-btn">Help Someone (View a Screen)</button>
 
-    <div id="getHelpSection" class="hidden">
-      <h2>Get Help</h2>
-      <p>Your session code (changes every 10 minutes):</p>
-      <div id="sessionCode" class="code"></div>
-      <button id="startSharingBtn">Start Sharing</button>
-      <div id="countdown"></div>
+    <div id="get-help-section" class="hidden">
+      <h2>Your Security Code (changes every 10 minutes):</h2>
+      <div id="code" class="code"></div>
+      <div>Expires in <span id="countdown">--:--</span></div>
+      <p>Share this code with someone you trust.</p>
+      <button id="start-share">Start Sharing</button>
     </div>
 
-    <div id="helpSomeoneSection" class="hidden">
-      <h2>Help Someone</h2>
-      <p>Enter the session code provided by the sharer:</p>
-      <input type="text" id="codeInput" placeholder="XXXX-XX" maxlength="7" />
-      <button id="joinViewBtn">Join</button>
+    <div id="help-someone-section" class="hidden">
+      <h2>Enter Security Code to View Screen</h2>
+      <input type="text" id="input-code" placeholder="XXXX-XX" maxlength="7" />
+      <button id="join-room-btn">Join</button>
+      <p id="join-error" style="color: red; display:none;">Invalid code or room not found.</p>
     </div>
   </div>
 
-  <script src="utils.js"></script>
   <script>
-    const getHelpBtn = document.getElementById("getHelpBtn");
-    const helpSomeoneBtn = document.getElementById("helpSomeoneBtn");
-    const getHelpSection = document.getElementById("getHelpSection");
-    const helpSomeoneSection = document.getElementById("helpSomeoneSection");
-    const sessionCodeEl = document.getElementById("sessionCode");
-    const countdownEl = document.getElementById("countdown");
-    const startSharingBtn = document.getElementById("startSharingBtn");
-    const codeInput = document.getElementById("codeInput");
-    const joinViewBtn = document.getElementById("joinViewBtn");
+    const getHelpBtn = document.getElementById("get-help-btn");
+    const helpSomeoneBtn = document.getElementById("help-someone-btn");
+    const getHelpSection = document.getElementById("get-help-section");
+    const helpSomeoneSection = document.getElementById("help-someone-section");
+    const codeElem = document.getElementById("code");
+    const countdownElem = document.getElementById("countdown");
+    const startShareBtn = document.getElementById("start-share");
+    const inputCode = document.getElementById("input-code");
+    const joinRoomBtn = document.getElementById("join-room-btn");
+    const joinError = document.getElementById("join-error");
 
-    let sessionCode = "";
+    let currentCode = "";
     let countdownInterval;
 
-    function generateSessionCode() {
-      // Format: 4 digits - 2 digits, e.g. 4812-30
-      return Math.floor(1000 + Math.random() * 9000) + "-" + Math.floor(10 + Math.random() * 90);
+    function generateCode() {
+      const part1 = Math.floor(1000 + Math.random() * 9000); // 4 digits
+      const part2 = Math.floor(10 + Math.random() * 90); // 2 digits
+      return `${part1}-${part2}`;
     }
 
-    function startCountdown(duration) {
-      let timeLeft = duration;
-      countdownEl.textContent = `Session expires in ${timeLeft} seconds`;
-
+    function startCountdown(durationSec) {
+      let timeLeft = durationSec;
+      countdownElem.textContent = formatTime(timeLeft);
       countdownInterval = setInterval(() => {
         timeLeft--;
         if (timeLeft <= 0) {
           clearInterval(countdownInterval);
-          countdownEl.textContent = "Session expired. Generate new code.";
-          sessionCode = generateSessionCode();
-          sessionCodeEl.textContent = sessionCode;
-          startCountdown(duration);
+          newCode();
         } else {
-          countdownEl.textContent = `Session expires in ${timeLeft} seconds`;
+          countdownElem.textContent = formatTime(timeLeft);
         }
       }, 1000);
+    }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function newCode() {
+      currentCode = generateCode();
+      codeElem.textContent = currentCode;
+      startCountdown(600); // 10 minutes
     }
 
     getHelpBtn.onclick = () => {
       getHelpSection.classList.remove("hidden");
       helpSomeoneSection.classList.add("hidden");
-      sessionCode = generateSessionCode();
-      sessionCodeEl.textContent = sessionCode;
-      startCountdown(600); // 10 minutes
+      newCode();
     };
 
     helpSomeoneBtn.onclick = () => {
@@ -81,17 +87,20 @@
       getHelpSection.classList.add("hidden");
     };
 
-    startSharingBtn.onclick = () => {
-      window.location.href = `share.html?code=${sessionCode}`;
+    startShareBtn.onclick = () => {
+      // Redirect to share.html with code param
+      window.location.href = `share.html?room=${currentCode}`;
     };
 
-    joinViewBtn.onclick = () => {
-      let code = codeInput.value.trim();
-      if (/^\d{4}-\d{2}$/.test(code)) {
-        window.location.href = `view.html?code=${code}`;
-      } else {
-        alert("Enter a valid code in format XXXX-XX");
+    joinRoomBtn.onclick = () => {
+      const code = inputCode.value.trim().toUpperCase();
+      const valid = /^\d{4}-\d{2}$/.test(code);
+      if (!valid) {
+        joinError.style.display = "block";
+        return;
       }
+      joinError.style.display = "none";
+      window.location.href = `view.html?room=${code}`;
     };
   </script>
 </body>
