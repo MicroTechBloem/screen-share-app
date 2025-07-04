@@ -2,66 +2,50 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Zyra View – by Micro Tech Bloem</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      background: #f1f1f1;
-      display: flex;
-      height: 100vh;
-      align-items: center;
-      justify-content: center;
-    }
-    .container {
-      text-align: center;
-      background: white;
-      padding: 2rem;
-      border-radius: 1rem;
-      box-shadow: 0 0 30px rgba(0,0,0,0.1);
-    }
-    input, button {
-      padding: 0.7rem;
-      margin-top: 1rem;
-      width: 80%;
-      max-width: 300px;
-      font-size: 1rem;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      display: block;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    button {
-      background-color: #0077cc;
-      color: white;
-      border: none;
-      margin-top: 10px;
-    }
-    h1 {
-      color: #0077cc;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="container">
     <h1>Zyra View</h1>
     <p><strong>by Micro Tech Bloem</strong></p>
+
     <input type="text" id="room" placeholder="Enter Room Code" />
+    <input type="password" id="roomPass" placeholder="Optional Password" />
+
     <button onclick="startShare()">Start Sharing</button>
     <button onclick="joinRoom()">Join Room</button>
+
+    <canvas id="qrcode" style="margin-top: 1rem;"></canvas>
+
+    <footer>&copy; 2025 Micro Tech Bloem</footer>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <script>
     function startShare() {
-      const room = document.getElementById('room').value.trim();
-      if (room) window.location.href = '/share/' + room;
+      const room = document.getElementById("room").value.trim();
+      const pass = document.getElementById("roomPass").value.trim();
+      if (room) {
+        window.location.href = `/share/${room}?pass=${pass}`;
+      }
     }
 
     function joinRoom() {
-      const room = document.getElementById('room').value.trim();
-      if (room) window.location.href = '/view/' + room;
+      const room = document.getElementById("room").value.trim();
+      const pass = document.getElementById("roomPass").value.trim();
+      if (room) {
+        window.location.href = `/view/${room}?pass=${pass}`;
+      }
     }
+
+    document.getElementById("room").addEventListener("input", () => {
+      const val = document.getElementById("room").value.trim();
+      if (val) {
+        QRCode.toCanvas(document.getElementById("qrcode"), location.origin + "/view/" + val);
+      }
+    });
   </script>
 </body>
 </html>
