@@ -2,70 +2,51 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Zyra View - Share Your Screen</title>
-  <link rel="stylesheet" href="style.css" />
-  <script src="/socket.io/socket.io.js"></script>
+  <title>Share Screen - Zyra View</title>
+  <style>
+    body { background: #111; color: #eee; font-family: Arial, sans-serif; text-align: center; }
+    video { border: 2px solid #00bfa5; max-width: 90vw; margin-top: 20px; }
+    #status { margin-top: 15px; font-weight: bold; }
+  </style>
 </head>
 <body>
-  <h2>🔒 Secure Screen Sharing</h2>
-  <p>Sharing to room code: <span id="roomCode"></span></p>
-  <video id="screenVideo" autoplay muted></video>
-  <button id="stopBtn">Stop Sharing</button>
+  <h1>Sharing Your Screen</h1>
+  <p>Code: <span id="room-code"></span></p>
+  <video id="screen-video" autoplay muted></video>
+  <p id="status">🔐 Establishing Secure Connection...</p>
 
-  <div id="status"></div>
-
+  <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
-    const roomCode = new URLSearchParams(window.location.search).get("code");
-    const roomCodeEl = document.getElementById("roomCode");
-    const video = document.getElementById("screenVideo");
-    const stopBtn = document.getElementById("stopBtn");
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomCode = urlParams.get("room");
+    document.getElementById("room-code").textContent = roomCode || "NO CODE";
+
+    socket.emit("join-room", roomCode, "sharer");
+
     const status = document.getElementById("status");
+    const videoElem = document.getElementById("screen-video");
 
-    if (!roomCode) {
-      alert("No room code provided");
-      window.location.href = "/";
-    }
-
-    roomCodeEl.textContent = roomCode;
-
-    let mediaRecorder;
-    let stream;
-
-    socket.emit("join-room", roomCode);
-
-    socket.on("sharer", async () => {
+    async function startSharing() {
       try {
-        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-        video.srcObject = stream;
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        videoElem.srcObject = stream;
+        status.textContent = "🔐 Secure Connection Established. Streaming...";
 
-        mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm; codecs=vp8" });
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            socket.emit("screen-stream", { roomId: roomCode, chunk: event.data });
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm; codecs=vp8" });
+        mediaRecorder.ondataavailable = e => {
+          if (e.data.size > 0) {
+            // Send Blob directly
+            socket.emit("screen-stream", roomCode, e.data);
           }
         };
-        mediaRecorder.start(100); // send every 100ms
-
-        status.textContent = "🔐 Sharing started";
+        mediaRecorder.start(100); // 100ms chunks
       } catch (err) {
-        alert("Screen sharing permission denied or error: " + err);
-        window.location.href = "/";
+        status.textContent = "⚠️ Error: " + err.message;
       }
-    });
+    }
 
-    stopBtn.onclick = () => {
-      if (mediaRecorder && mediaRecorder.state !== "inactive") {
-        mediaRecorder.stop();
-      }
-      if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
-      }
-      socket.disconnect();
-      status.textContent = "🛑 Sharing stopped";
-      setTimeout(() => window.location.href = "/", 2000);
-    };
+    startSharing();
   </script>
 </body>
 </html>
