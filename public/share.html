@@ -1,12 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Start Screen Share</title>
+  <title>Share Screen - Zyra View</title>
 </head>
 <body>
-  <h2>Start Screen Sharing</h2>
-  <button id="start">Start Sharing</button>
+  <h2>Sharing Screen in Room: <span id="roomId"></span></h2>
   <script src="/socket.io/socket.io.js"></script>
-  <script src="script.js"></script>
+  <script>
+    const socket = io();
+    const roomId = window.location.pathname.split("/").pop();
+    document.getElementById("roomId").textContent = roomId;
+    socket.emit("join-room", roomId);
+
+    navigator.mediaDevices.getDisplayMedia({ video: true }).then(stream => {
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      video.play();
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => {
+        socket.emit("screen-stream", { room: roomId, chunk: e.data });
+      };
+      mediaRecorder.start(200);
+    });
+  </script>
 </body>
 </html>
+
