@@ -7,39 +7,46 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// Serve frontend files
 app.use(express.static(path.join(__dirname, "public")));
 
-const activeRooms = new Map(); // roomId => socket.id
+const activeRooms = new Map(); // roomId -> sharer socket id
 
-io.on("connection", socket => {
-  console.log("🔌 New connection");
+io.on("connection", (socket) => {
+  console.log(`🔌 Connected: ${socket.id}`);
 
-  socket.on("join-room", roomId => {
+  // Join a room
+  socket.on("join-room", (roomId) => {
     socket.join(roomId);
-    console.log(`👤 ${socket.id} joined room ${roomId}`);
-
-    if (!activeRooms.has(roomId)) {
-      activeRooms.set(roomId, socket.id); // Set sharer
+    const isSharer = !activeRooms.has(roomId);
+    if (isSharer) {
+      activeRooms.set(roomId, socket.id);
       socket.emit("sharer");
     } else {
       socket.emit("viewer");
     }
+    console.log(`👤 ${socket.id} joined room ${roomId} as ${isSharer ? "sharer" : "viewer"}`);
   });
 
+  // Screen streaming
   socket.on("screen-stream", ({ roomId, chunk }) => {
-    socket.to(roomId).emit("screen-stream", chunk); // Send raw chunk
+    socket.to(roomId).emit("screen-stream", chunk);
   });
 
+  // Chat system
   socket.on("chat-message", ({ roomId, message }) => {
-    socket.to(roomId).emit("chat-message", { message, sender: socket.id });
+    const sender = socket.id;
+    socket.to(roomId).emit("chat-message", { message, sender });
   });
 
+  // Disconnect cleanup
   socket.on("disconnect", () => {
-    console.log(`❌ ${socket.id} disconnected`);
-    for (let [roomId, id] of activeRooms) {
-      if (id === socket.id) {
+    console.log(`❌ Disconnected: ${socket.id}`);
+    for (const [roomId, sharerId] of activeRooms) {
+      if (sharerId === socket.id) {
         activeRooms.delete(roomId);
-        io.to(roomId).emit("sharer-disconnected");
+        socket.to(roomId).emit("sharer-disconnected");
+        console.log(`⚠️ Sharer left room ${roomId}`);
       }
     }
   });
