@@ -7,8 +7,9 @@
     body {
       background: #fff;
       font-family: 'Segoe UI', sans-serif;
-      padding-top: 60px;
+      padding: 20px;
       text-align: center;
+      position: relative;
     }
     video {
       width: 90%;
@@ -21,6 +22,27 @@
       font-weight: bold;
       margin-top: 15px;
     }
+    #laser-pointer {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: red;
+      border-radius: 50%;
+      pointer-events: none;
+      mix-blend-mode: difference;
+      display: none;
+      z-index: 1000;
+    }
+    #control-button {
+      margin-top: 20px;
+    }
+    #file-downloads {
+      margin-top: 20px;
+      text-align: left;
+      max-width: 90%;
+      margin-left: auto;
+      margin-right: auto;
+    }
   </style>
 </head>
 <body>
@@ -28,6 +50,12 @@
   <p class="lead">🔐 Connecting to session...</p>
   <p id="status">Waiting for screen sharer to connect...</p>
   <video id="stream" autoplay></video>
+
+  <button id="control-button" class="btn btn-primary">Request Remote Control</button>
+
+  <div id="file-downloads"></div>
+
+  <div id="laser-pointer"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -48,6 +76,58 @@
         reader.readAsArrayBuffer(data.chunk);
         document.getElementById("status").textContent = "✅ Secure Session Active";
       });
+    });
+
+    // Laser pointer from sharer
+    const laser = document.getElementById("laser-pointer");
+    socket.on("laser", data => {
+      laser.style.left = data.x + "px";
+      laser.style.top = data.y + "px";
+      laser.style.display = "block";
+      clearTimeout(laser.hideTimeout);
+      laser.hideTimeout = setTimeout(() => {
+        laser.style.display = "none";
+      }, 1000);
+    });
+
+    // Remote control request
+    const controlBtn = document.getElementById("control-button");
+    controlBtn.onclick = () => {
+      socket.emit("control-request", { room: roomId, from: "Viewer" });
+      controlBtn.disabled = true;
+      controlBtn.textContent = "Control Requested...";
+    };
+
+    socket.on("control-granted", () => {
+      document.getElementById("status").textContent = "🎉 Remote control granted!";
+
+      // Setup control listeners
+      video.addEventListener("mousemove", e => {
+        socket.emit("mouse-event", {
+          room: roomId,
+          x: e.clientX,
+          y: e.clientY
+        });
+      });
+
+      window.addEventListener("keydown", e => {
+        socket.emit("keyboard-event", {
+          room: roomId,
+          key: e.key,
+          code: e.code
+        });
+      });
+    });
+
+    // File download handler
+    socket.on("file-receive", data => {
+      const downloads = document.getElementById("file-downloads");
+      const a = document.createElement("a");
+      a.href = data.content;
+      a.download = data.name;
+      a.textContent = `📥 ${data.name} (${Math.round(data.size/1024)} KB)`;
+      a.style.display = "block";
+      downloads.appendChild(a);
     });
   </script>
 </body>
