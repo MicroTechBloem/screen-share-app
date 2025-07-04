@@ -44,7 +44,6 @@
       border: 3px solid #00c897;
       background: black;
     }
-    /* Modal overlay */
     #secure-modal {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -68,15 +67,11 @@
       font-weight: 700;
       font-size: 1.4rem;
       color: #00c897;
-      box-shadow: 0 10px 30px rgba(0, 200, 151, 0.6);
+      box-shadow: 0 10px 30px rgba(0, 200, 151, 0.5);
       display: flex;
       align-items: center;
       gap: 1rem;
       animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.05); opacity: 0.8; }
     }
     .spinner {
       border: 4px solid #004aad;
@@ -90,15 +85,19 @@
       0% { transform: rotate(0deg);}
       100% { transform: rotate(360deg);}
     }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.8; }
+    }
   </style>
 </head>
 <body>
   <header>
-    Zyra View – Viewing Screen  
+    Zyra View – Viewing Screen
     <div id="room-code"></div>
   </header>
 
-  <video id="stream" autoplay playsinline></video>
+  <video id="screen" autoplay playsinline controls muted></video>
 
   <div id="secure-modal">
     <div id="secure-modal-content">
@@ -110,29 +109,51 @@
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
+    const video = document.getElementById("screen");
     const roomId = window.location.pathname.split("/").pop();
     document.getElementById("room-code").textContent = `Session Code: ${roomId}`;
 
-    socket.emit("join-room", roomId);
-    socket.emit("viewer-ready", roomId);
+    socket.emit("join-room", roomId, "viewer");
 
-    const video = document.getElementById("stream");
-    const mediaSource = new MediaSource();
+    let mediaSource = new MediaSource();
     video.src = URL.createObjectURL(mediaSource);
 
     mediaSource.addEventListener("sourceopen", () => {
-      const buffer = mediaSource.addSourceBuffer('video/webm; codecs="vp8"');
+      const mime = 'video/webm; codecs="vp8,opus"';
+      const sourceBuffer = mediaSource.addSourceBuffer(mime);
+
       socket.on("screen-stream", (data) => {
         const reader = new FileReader();
-        reader.onload = () => buffer.appendBuffer(new Uint8Array(reader.result));
+        reader.onload = function () {
+          sourceBuffer.appendBuffer(new Uint8Array(this.result));
+        };
         reader.readAsArrayBuffer(data.chunk);
-        // Hide modal on first data
-        document.getElementById("secure-modal").classList.add("hide");
-        setTimeout(() => {
-          document.getElementById("secure-modal").style.display = "none";
-        }, 700);
       });
     });
+
+    socket.on("sharer-online", () => {
+      const modal = document.getElementById("secure-modal");
+      const modalText = modal.querySelector("span");
+      modalText.textContent = "🔐 Connected. Loading screen...";
+    });
+
+    socket.on("sharer-offline", () => {
+      const modal = document.getElementById("secure-modal");
+      modal.classList.remove("hide");
+      modal.querySelector("span").textContent = "⚠️ User disconnected. Waiting...";
+    });
+
+    socket.on("wait-for-sharer", () => {
+      const modal = document.getElementById("secure-modal");
+      modal.querySelector("span").textContent = "⌛ Waiting for user to share screen...";
+    });
+
+    // Optional: auto-hide modal once screen starts flowing
+    video.onplaying = () => {
+      const modal = document.getElementById("secure-modal");
+      modal.classList.add("hide");
+      setTimeout(() => modal.style.display = "none", 700);
+    };
   </script>
 </body>
 </html>
