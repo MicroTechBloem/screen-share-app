@@ -1,12 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>View Screen</title>
+  <title>View Screen - Zyra View</title>
 </head>
 <body>
   <h2>Viewing Live Screen</h2>
-  <video id="viewer" autoplay playsinline style="width: 100%; max-width: 900px;"></video>
+  <video id="view" autoplay></video>
   <script src="/socket.io/socket.io.js"></script>
-  <script src="script.js"></script>
+  <script>
+    const socket = io();
+    const roomId = window.location.pathname.split("/").pop();
+    socket.emit("join-room", roomId);
+
+    const video = document.getElementById("view");
+    const mediaSource = new MediaSource();
+    video.src = URL.createObjectURL(mediaSource);
+    mediaSource.addEventListener("sourceopen", () => {
+      const sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp8"');
+      socket.on("screen-stream", data => {
+        const reader = new FileReader();
+        reader.onload = () => sourceBuffer.appendBuffer(new Uint8Array(reader.result));
+        reader.readAsArrayBuffer(data.chunk);
+      });
+    });
+  </script>
 </body>
 </html>
