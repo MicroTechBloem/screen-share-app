@@ -1,5 +1,5 @@
 {
-  "name": "screen-share-app",
+  "name": "zyra-view-pro",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
@@ -10,3 +10,4 @@
     "socket.io": "^4.7.2"
   }
 }
+
