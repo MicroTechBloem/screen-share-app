@@ -1,11 +1,67 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Welcome to Screen Share</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zyra View – by Micro Tech Bloem</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f1f1f1;
+      display: flex;
+      height: 100vh;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      text-align: center;
+      background: white;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 0 30px rgba(0,0,0,0.1);
+    }
+    input, button {
+      padding: 0.7rem;
+      margin-top: 1rem;
+      width: 80%;
+      max-width: 300px;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    button {
+      background-color: #0077cc;
+      color: white;
+      border: none;
+      margin-top: 10px;
+    }
+    h1 {
+      color: #0077cc;
+    }
+  </style>
 </head>
 <body>
-  <h1>Screen Share App</h1>
-  <p><a href="/share">Start Sharing Your Screen</a></p>
-  <p>To view a shared screen, go to <code>/view/room1</code></p>
+  <div class="container">
+    <h1>Zyra View</h1>
+    <p><strong>by Micro Tech Bloem</strong></p>
+    <input type="text" id="room" placeholder="Enter Room Code" />
+    <button onclick="startShare()">Start Sharing</button>
+    <button onclick="joinRoom()">Join Room</button>
+  </div>
+
+  <script>
+    function startShare() {
+      const room = document.getElementById('room').value.trim();
+      if (room) window.location.href = '/share/' + room;
+    }
+
+    function joinRoom() {
+      const room = document.getElementById('room').value.trim();
+      if (room) window.location.href = '/view/' + room;
+    }
+  </script>
 </body>
 </html>
