@@ -2,105 +2,111 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Zyra View by Micro Tech Bloem</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Simple Screen Share</title>
 </head>
 <body>
-  <div class="container">
-    <h1>Zyra View</h1>
-    <p>Get help or help someone by sharing or viewing screens securely with a code.</p>
-
-    <button id="get-help-btn">Get Help (Share Your Screen)</button>
-    <button id="help-someone-btn">Help Someone (View a Screen)</button>
-
-    <div id="get-help-section" class="hidden">
-      <h2>Your Security Code (changes every 10 minutes):</h2>
-      <div id="code" class="code"></div>
-      <div>Expires in <span id="countdown">--:--</span></div>
-      <p>Share this code with someone you trust.</p>
-      <button id="start-share">Start Sharing</button>
-    </div>
-
-    <div id="help-someone-section" class="hidden">
-      <h2>Enter Security Code to View Screen</h2>
-      <input type="text" id="input-code" placeholder="XXXX-XX" maxlength="7" />
-      <button id="join-room-btn">Join</button>
-      <p id="join-error" style="color: red; display:none;">Invalid code or room not found.</p>
-    </div>
+  <h2>Simple Screen Share</h2>
+  <div>
+    <button id="shareBtn">Share Screen</button>
+    <input type="text" id="roomInput" placeholder="Enter Room Code" />
+    <button id="viewBtn">View Screen</button>
   </div>
+  <video id="remoteVideo" autoplay playsinline style="width: 80%; border: 1px solid #ccc;"></video>
 
+  <script src="/socket.io/socket.io.js"></script>
   <script>
-    const getHelpBtn = document.getElementById("get-help-btn");
-    const helpSomeoneBtn = document.getElementById("help-someone-btn");
-    const getHelpSection = document.getElementById("get-help-section");
-    const helpSomeoneSection = document.getElementById("help-someone-section");
-    const codeElem = document.getElementById("code");
-    const countdownElem = document.getElementById("countdown");
-    const startShareBtn = document.getElementById("start-share");
-    const inputCode = document.getElementById("input-code");
-    const joinRoomBtn = document.getElementById("join-room-btn");
-    const joinError = document.getElementById("join-error");
-
-    let currentCode = "";
-    let countdownInterval;
-
-    function generateCode() {
-      const part1 = Math.floor(1000 + Math.random() * 9000); // 4 digits
-      const part2 = Math.floor(10 + Math.random() * 90); // 2 digits
-      return `${part1}-${part2}`;
-    }
-
-    function startCountdown(durationSec) {
-      let timeLeft = durationSec;
-      countdownElem.textContent = formatTime(timeLeft);
-      countdownInterval = setInterval(() => {
-        timeLeft--;
-        if (timeLeft <= 0) {
-          clearInterval(countdownInterval);
-          newCode();
-        } else {
-          countdownElem.textContent = formatTime(timeLeft);
-        }
-      }, 1000);
-    }
-
-    function formatTime(sec) {
-      const m = Math.floor(sec / 60);
-      const s = sec % 60;
-      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    }
-
-    function newCode() {
-      currentCode = generateCode();
-      codeElem.textContent = currentCode;
-      startCountdown(600); // 10 minutes
-    }
-
-    getHelpBtn.onclick = () => {
-      getHelpSection.classList.remove("hidden");
-      helpSomeoneSection.classList.add("hidden");
-      newCode();
+    const socket = io();
+    let localStream;
+    let peerConnection;
+    const config = {
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
     };
 
-    helpSomeoneBtn.onclick = () => {
-      helpSomeoneSection.classList.remove("hidden");
-      getHelpSection.classList.add("hidden");
-    };
+    const shareBtn = document.getElementById('shareBtn');
+    const viewBtn = document.getElementById('viewBtn');
+    const roomInput = document.getElementById('roomInput');
+    const remoteVideo = document.getElementById('remoteVideo');
 
-    startShareBtn.onclick = () => {
-      // Redirect to share.html with code param
-      window.location.href = `share.html?room=${currentCode}`;
-    };
+    shareBtn.onclick = async () => {
+      const roomId = prompt('Enter room code to share your screen:');
+      if (!roomId) return alert('Room code required');
 
-    joinRoomBtn.onclick = () => {
-      const code = inputCode.value.trim().toUpperCase();
-      const valid = /^\d{4}-\d{2}$/.test(code);
-      if (!valid) {
-        joinError.style.display = "block";
-        return;
+      socket.emit('join-room', roomId, 'sharer');
+
+      try {
+        localStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      } catch (err) {
+        return alert('Failed to get screen stream: ' + err);
       }
-      joinError.style.display = "none";
-      window.location.href = `view.html?room=${code}`;
+
+      peerConnection = new RTCPeerConnection(config);
+
+      localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+      });
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('ice-candidate', event.candidate, null);
+        }
+      };
+
+      socket.on('viewer-joined', async (viewerId) => {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        socket.emit('offer', offer, viewerId);
+      });
+
+      socket.on('answer', async (answer) => {
+        await peerConnection.setRemoteDescription(answer);
+      });
+
+      socket.on('ice-candidate', async (candidate) => {
+        try {
+          await peerConnection.addIceCandidate(candidate);
+        } catch (e) {
+          console.error('Error adding ICE candidate:', e);
+        }
+      });
+    };
+
+    viewBtn.onclick = async () => {
+      const roomId = roomInput.value.trim();
+      if (!roomId) return alert('Enter room code to view screen');
+
+      socket.emit('join-room', roomId, 'viewer');
+
+      peerConnection = new RTCPeerConnection(config);
+
+      peerConnection.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('ice-candidate', event.candidate, null);
+        }
+      };
+
+      socket.on('offer', async (offer, sharerId) => {
+        await peerConnection.setRemoteDescription(offer);
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit('answer', answer, sharerId);
+      });
+
+      socket.on('sharer-left', () => {
+        alert('Sharer disconnected');
+        remoteVideo.srcObject = null;
+      });
+
+      socket.on('ice-candidate', async (candidate) => {
+        try {
+          await peerConnection.addIceCandidate(candidate);
+        } catch (e) {
+          console.error('Error adding ICE candidate:', e);
+        }
+      });
     };
   </script>
 </body>
