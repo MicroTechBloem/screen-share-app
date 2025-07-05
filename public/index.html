@@ -3,6 +3,43 @@
 <head>
   <meta charset="UTF-8" />
   <title>Simple Screen Share</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+      background: #f5f5f5;
+      color: #333;
+    }
+    h2 {
+      text-align: center;
+    }
+    #remoteVideo {
+      width: 100%;
+      height: auto;
+      border: 1px solid #ccc;
+      margin-top: 20px;
+      background: black;
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+    button {
+      cursor: pointer;
+      background-color: #007bff;
+      border: none;
+      color: white;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+  </style>
 </head>
 <body>
   <h2>Simple Screen Share</h2>
@@ -11,7 +48,7 @@
     <input type="text" id="roomInput" placeholder="Enter Room Code" />
     <button id="viewBtn">View Screen</button>
   </div>
-  <video id="remoteVideo" autoplay playsinline style="width: 80%; border: 1px solid #ccc;"></video>
+  <video id="remoteVideo" autoplay playsinline></video>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
