@@ -1,79 +1,65 @@
-const express = require("express");
-const http = require("http");
-const path = require("path");
-const { Server } = require("socket.io");
-
+const express = require('express');
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+const http = require('http').createServer(app);
+const io = require('socket.io')(http);
 
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static('public'));
 
-// Room map: roomCode -> { sharerId, viewers: Set }
-const rooms = new Map();
+const rooms = {};
 
-// Helper to clean old rooms (not implemented, add if needed)
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
 
-io.on("connection", (socket) => {
-  console.log("Connected", socket.id);
+  socket.on('join-room', (roomId, role) => {
+    socket.join(roomId);
+    console.log(`${socket.id} joined room ${roomId} as ${role}`);
 
-  socket.on("join-room", (roomCode, role) => {
-    socket.join(roomCode);
-    if (!rooms.has(roomCode)) rooms.set(roomCode, { sharerId: null, viewers: new Set() });
-    const room = rooms.get(roomCode);
-
-    if (role === "sharer") {
-      room.sharerId = socket.id;
-      console.log(`${socket.id} joined room ${roomCode} as sharer`);
-      // Notify viewers sharer is online
-      socket.to(roomCode).emit("sharer-online");
-    } else if (role === "viewer") {
-      room.viewers.add(socket.id);
-      console.log(`${socket.id} joined room ${roomCode} as viewer`);
-      // Notify sharer if needed (optional)
-      if (room.sharerId) io.to(room.sharerId).emit("viewer-joined", socket.id);
+    if (!rooms[roomId]) {
+      rooms[roomId] = { sharer: null, viewers: [] };
     }
 
-    // Acknowledge join
-    socket.emit("joined", roomCode, role);
-  });
-
-  socket.on("screen-stream", (roomCode, chunk) => {
-    // Send the video chunk from sharer to all viewers
-    socket.to(roomCode).emit("screen-stream", chunk);
-  });
-
-  socket.on("chat-message", (roomCode, message) => {
-    // Relay chat messages between sharer and viewers
-    const room = rooms.get(roomCode);
-    if (!room) return;
-    // Broadcast to all except sender in that room
-    socket.to(roomCode).emit("chat-message", { sender: socket.id, message });
-  });
-
-  socket.on("request-control", (roomCode) => {
-    // Viewer requests control (placeholder)
-    const room = rooms.get(roomCode);
-    if (!room) return;
-    if (room.sharerId) {
-      io.to(room.sharerId).emit("control-request", socket.id);
-    }
-  });
-
-  socket.on("disconnect", () => {
-    // Clean up rooms on disconnect
-    for (const [code, room] of rooms.entries()) {
-      if (room.sharerId === socket.id) {
-        // Sharer left: notify viewers
-        io.to(code).emit("sharer-disconnected");
-        rooms.delete(code);
-      } else if (room.viewers.has(socket.id)) {
-        room.viewers.delete(socket.id);
+    if (role === 'sharer') {
+      rooms[roomId].sharer = socket.id;
+    } else {
+      rooms[roomId].viewers.push(socket.id);
+      // Notify sharer that viewer joined
+      if (rooms[roomId].sharer) {
+        io.to(rooms[roomId].sharer).emit('viewer-joined', socket.id);
       }
     }
-    console.log("Disconnected", socket.id);
+  });
+
+  socket.on('offer', (offer, viewerId) => {
+    io.to(viewerId).emit('offer', offer, socket.id);
+  });
+
+  socket.on('answer', (answer, sharerId) => {
+    io.to(sharerId).emit('answer', answer, socket.id);
+  });
+
+  socket.on('ice-candidate', (candidate, otherId) => {
+    io.to(otherId).emit('ice-candidate', candidate, socket.id);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+    // Clean up rooms if needed
+    for (const roomId in rooms) {
+      if (rooms[roomId].sharer === socket.id) {
+        // Sharer left, notify viewers
+        rooms[roomId].viewers.forEach(v => io.to(v).emit('sharer-left'));
+        delete rooms[roomId];
+      } else {
+        const idx = rooms[roomId].viewers.indexOf(socket.id);
+        if (idx !== -1) {
+          rooms[roomId].viewers.splice(idx, 1);
+        }
+      }
+    }
   });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const PORT = 3000;
+http.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
