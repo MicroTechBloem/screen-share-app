@@ -22,7 +22,6 @@ io.on('connection', (socket) => {
       rooms[roomId].sharer = socket.id;
     } else {
       rooms[roomId].viewers.push(socket.id);
-      // Notify sharer that viewer joined
       if (rooms[roomId].sharer) {
         io.to(rooms[roomId].sharer).emit('viewer-joined', socket.id);
       }
@@ -43,10 +42,8 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    // Clean up rooms if needed
     for (const roomId in rooms) {
       if (rooms[roomId].sharer === socket.id) {
-        // Sharer left, notify viewers
         rooms[roomId].viewers.forEach(v => io.to(v).emit('sharer-left'));
         delete rooms[roomId];
       } else {
